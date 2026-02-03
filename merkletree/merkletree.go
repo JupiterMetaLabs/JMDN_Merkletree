@@ -419,6 +419,25 @@ func innerNodeDigest(hf HashFactory, start uint64, count uint32, left Hash32, ri
 	return sumTo32(h)
 }
 
+// ComputeChunkDigest calculates the chunk digest for a specific set of blocks
+// effectively replicating the "fast path" without creating a full Builder.
+// It matches the internal behavior of Builder for a single chunk.
+func ComputeChunkDigest(hf HashFactory, startHeight uint64, blockHashes []Hash32) Hash32 {
+	if hf == nil {
+		hf = func() hash.Hash { return DefaultHashFactory() }
+	}
+	count := uint32(len(blockHashes))
+	if count == 0 {
+		return Hash32{}
+	}
+
+	elems := make([]Hash32, count)
+	for i, h := range blockHashes {
+		elems[i] = elemDigest(hf, startHeight+uint64(i), h)
+	}
+	return chunkDigest(hf, startHeight, count, elems)
+}
+
 func sumTo32(h hash.Hash) Hash32 {
 	sum := h.Sum(nil)
 	var out Hash32
