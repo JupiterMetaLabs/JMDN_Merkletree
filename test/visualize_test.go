@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/neerajchowdary889/JMDN_Merkletree/merkletree"
+	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
 )
 
 func TestRandomizedDiff10k(t *testing.T) {

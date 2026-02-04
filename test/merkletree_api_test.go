@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/neerajchowdary889/JMDN_Merkletree/merkletree"
+	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
 )
 
 func TestComputeChunkDigest(t *testing.T) {

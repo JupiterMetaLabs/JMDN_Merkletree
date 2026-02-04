@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/neerajchowdary889/JMDN_Merkletree/merkletree"
+	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
 )
 
 // NetworkPayload simulates the JSON message sent over the wire.
