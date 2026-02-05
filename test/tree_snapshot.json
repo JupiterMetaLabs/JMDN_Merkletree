@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "config": {
+    "block_merge": 100,
+    "expected_total": 0
+  },
+  "total_blocks": 1000,
+  "expected_next_height": 0,
+  "enforce_heights": false,
+  "in_chunk_elems": [],
+  "in_chunk_start": 0,
+  "peaks": [
+    null,
+    {
+      "left": {
+        "root": "z0zFEa49faERKaCwChlW0o4PBqry0BcMjd+bw0mEyEc=",
+        "start": 800,
+        "count": 100,
+        "data": "z0zFEa49faERKaCwChlW0o4PBqry0BcMjd+bw0mEyEc=",
+        "has_data": true
+      },
+      "right": {
+        "root": "lE3jvbmM+9m3Qxcy1bhy9SBtZD4czYlgIBddM7mxP3I=",
+        "start": 900,
+        "count": 100,
+        "data": "lE3jvbmM+9m3Qxcy1bhy9SBtZD4czYlgIBddM7mxP3I=",
+        "has_data": true
+      },
+      "root": "f5F+pOW9JcnEk/MLq+8DnXcZb36dZphtHhxSXwObAHQ=",
+      "start": 800,
+      "count": 200,
+      "has_data": false
+    },
+    null,
+    {
+      "left": {
+        "left": {
+          "left": {
+            "root": "7/V2rG9GRRdCMcKG8P3AlwEMwOdSMrq0TxbYXS5bsoQ=",
+            "start": 0,
+            "count": 100,
+            "data": "7/V2rG9GRRdCMcKG8P3AlwEMwOdSMrq0TxbYXS5bsoQ=",
+            "has_data": true
+          },
+          "right": {
+            "root": "XGyAF5zrRiylZ8yc59z2gIhkQtZ7lhuBnGVwps0OZNE=",
+            "start": 100,
+            "count": 100,
+            "data": "XGyAF5zrRiylZ8yc59z2gIhkQtZ7lhuBnGVwps0OZNE=",
+            "has_data": true
+          },
+          "root": "GLDN7e3DVztB11B1UJCPFTZoM8FWnIN3nl0XezU6YLY=",
+          "start": 0,
+          "count": 200,
+          "has_data": false
+        },
+        "right": {
+          "left": {
+            "root": "3FMxM2pPlwCwVGuswoBznj6mbhdgXZtxeTnSZoK4yco=",
+            "start": 200,
+            "count": 100,
+            "data": "3FMxM2pPlwCwVGuswoBznj6mbhdgXZtxeTnSZoK4yco=",
+            "has_data": true
+          },
+          "right": {
+            "root": "REI6chdS0xxqgAgpviGP9K5c/QZnELQ8MZP4SFad3jE=",
+            "start": 300,
+            "count": 100,
+            "data": "REI6chdS0xxqgAgpviGP9K5c/QZnELQ8MZP4SFad3jE=",
+            "has_data": true
+          },
+          "root": "aBRtrTY4NLGlR1P2dOhCR7sUMtdyjzApKQsYF7uZ+Zs=",
+          "start": 200,
+          "count": 200,
+          "has_data": false
+        },
+        "root": "uWdtrOw6ZzOe//T1ZGYkh5pLevZRwx21Xggchgz8dWI=",
+        "start": 0,
+        "count": 400,
+        "has_data": false
+      },
+      "right": {
+        "left": {
+          "left": {
+            "root": "6PHaWM9te4rjyMkmF2RdcRi5HrRn3hLpqRfaj/MD4Zc=",
+            "start": 400,
+            "count": 100,
+            "data": "6PHaWM9te4rjyMkmF2RdcRi5HrRn3hLpqRfaj/MD4Zc=",
+            "has_data": true
+          },
+          "right": {
+            "root": "ipPrnJ4bCQMCsc639rJOryb0juBJ/cshC8JaecPlmI8=",
+            "start": 500,
+            "count": 100,
+            "data": "ipPrnJ4bCQMCsc639rJOryb0juBJ/cshC8JaecPlmI8=",
+            "has_data": true
+          },
+          "root": "bWu13DU+jjC8BR2UqPuVcetGHfLR+2capdggBCSxlO8=",
+          "start": 400,
+          "count": 200,
+          "has_data": false
+        },
+        "right": {
+          "left": {
+            "root": "vrNFvZiAFI3JiekwPlBTuc/2Pp+jf1YTJLqdOjWG+so=",
+            "start": 600,
+            "count": 100,
+            "data": "vrNFvZiAFI3JiekwPlBTuc/2Pp+jf1YTJLqdOjWG+so=",
+            "has_data": true
+          },
+          "right": {
+            "root": "VS+aCExsAQEb8O18NlPywD342vx/q/VxbXpTUQxTgGA=",
+            "start": 700,
+            "count": 100,
+            "data": "VS+aCExsAQEb8O18NlPywD342vx/q/VxbXpTUQxTgGA=",
+            "has_data": true
+          },
+          "root": "IVmj0fqYFZk5mV7eIcUVH71Pr8Bh+S4thaZTVaSKdkY=",
+          "start": 600,
+          "count": 200,
+          "has_data": false
+        },
+        "root": "E50aGTrZdQ35sxVD92+EUYHFNJQ1suCy8cQKxEkYoNw=",
+        "start": 400,
+        "count": 400,
+        "has_data": false
+      },
+      "root": "Uro0zsY43KLbkZbSzOcv+2/6DUC/XvtM+yqJmSRuqVg=",
+      "start": 0,
+      "count": 800,
+      "has_data": false
+    }
+  ]
+}

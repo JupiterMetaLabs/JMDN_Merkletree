@@ -822,3 +822,159 @@ func EnsureSameRoot(a, b Hash32) error {
 	}
 	return nil
 }
+
+// ------------------------------
+// Snapshot / JSON Serialization
+// ------------------------------
+
+// ToSnapshot creates a serializable Snapshot struct from the current builder state.
+func (b *Builder) ToSnapshot() *MerkleTreeSnapshot {
+	s := &MerkleTreeSnapshot{
+		Version: 1,
+		Config: SnapshotConfig{
+			BlockMerge:    b.cfg.BlockMerge,
+			ExpectedTotal: b.cfg.ExpectedTotal,
+		},
+		TotalBlocks:        b.totalBlocks,
+		ExpectedNextHeight: b.expectedNextHeight,
+		EnforceHeights:     b.enforceHeights,
+		InChunkStart:       b.inChunkStart,
+	}
+
+	// Copy partial chunk elements
+	s.InChunkElems = make([][]byte, len(b.inChunkElems))
+	for i, h := range b.inChunkElems {
+		cp := make([]byte, 32)
+		copy(cp, h[:])
+		s.InChunkElems[i] = cp
+	}
+
+	// Copy outer peaks
+	s.Peaks = make([]*SnapshotNode, len(b.outer.peaks))
+	for i, p := range b.outer.peaks {
+		if p != nil {
+			s.Peaks[i] = nodeToSnapshot(p)
+		}
+	}
+
+	return s
+}
+
+// FromSnapshot restores a Builder from a snapshot.
+// Note: You must provide a HashFactory if the original used a non-default one,
+// but here we just accept a factory function (optional).
+func FromSnapshot(s *MerkleTreeSnapshot, hf HashFactory) (*Builder, error) {
+	if s.Version != 1 {
+		return nil, fmt.Errorf("unsupported snapshot version: %d", s.Version)
+	}
+
+	cfg := Config{
+		BlockMerge:    s.Config.BlockMerge,
+		ExpectedTotal: s.Config.ExpectedTotal,
+		HashFactory:   hf,
+		// StartHeight is not directly storable in Config struct as *uint64
+		// but we restore the builder state fields directly.
+	}
+
+	b, err := NewBuilder(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Restore state fields
+	b.totalBlocks = s.TotalBlocks
+	b.expectedNextHeight = s.ExpectedNextHeight
+	b.enforceHeights = s.EnforceHeights
+	b.inChunkStart = s.InChunkStart
+
+	// Restore partial chunk
+	b.inChunkElems = make([]Hash32, len(s.InChunkElems))
+	for i, bytes := range s.InChunkElems {
+		if len(bytes) != 32 {
+			return nil, fmt.Errorf("invalid hash length in partial chunk: %d", len(bytes))
+		}
+		copy(b.inChunkElems[i][:], bytes)
+	}
+
+	// Restore outer peaks
+	// We need to reconstruct the peaksAccumulator state.
+	// We assume hf is compatible.
+	b.outer.peaks = make([]*Node, len(s.Peaks))
+	var leafCount uint64
+
+	for i, snapNode := range s.Peaks {
+		if snapNode == nil {
+			continue
+		}
+		// Calculate how many leaves (chunks) this peak represents.
+		// Level i represents 2^i chunks.
+		leafCount += (1 << uint64(i))
+
+		node, err := snapshotToNode(snapNode)
+		if err != nil {
+			return nil, err
+		}
+		b.outer.peaks[i] = node
+	}
+	b.outer.leafCount = leafCount
+
+	return b, nil
+}
+
+func nodeToSnapshot(n *Node) *SnapshotNode {
+	if n == nil {
+		return nil
+	}
+	sn := &SnapshotNode{
+		Root:    make([]byte, 32),
+		Start:   n.Metadata.Start,
+		Count:   n.Metadata.Count,
+		HasData: n.HasData,
+	}
+	copy(sn.Root, n.Root[:])
+
+	if n.HasData {
+		sn.Data = make([]byte, 32)
+		copy(sn.Data, n.Data[:])
+	} else {
+		sn.Left = nodeToSnapshot(n.Left)
+		sn.Right = nodeToSnapshot(n.Right)
+	}
+	return sn
+}
+
+func snapshotToNode(sn *SnapshotNode) (*Node, error) {
+	if sn == nil {
+		return nil, nil
+	}
+	if len(sn.Root) != 32 {
+		return nil, errors.New("invalid root hash length in snapshot")
+	}
+	var root Hash32
+	copy(root[:], sn.Root)
+
+	n := &Node{
+		Root:     root,
+		Metadata: Metadata{Start: sn.Start, Count: sn.Count},
+		HasData:  sn.HasData,
+	}
+
+	if sn.HasData {
+		if len(sn.Data) != 32 {
+			return nil, errors.New("invalid data hash length in snapshot")
+		}
+		copy(n.Data[:], sn.Data)
+	} else {
+		left, err := snapshotToNode(sn.Left)
+		if err != nil {
+			return nil, err
+		}
+		right, err := snapshotToNode(sn.Right)
+		if err != nil {
+			return nil, err
+		}
+		n.Left = left
+		n.Right = right
+	}
+	return n, nil
+}
