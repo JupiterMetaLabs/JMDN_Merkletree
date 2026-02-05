@@ -22,10 +22,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
 	"math"
+	"os"
 )
 
 type Hash32 [32]byte
@@ -860,10 +862,35 @@ func (b *Builder) ToSnapshot() *MerkleTreeSnapshot {
 	return s
 }
 
+func (s *MerkleTreeSnapshot) SavetoJson(path string) error {
+	jsonBytes, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, jsonBytes, 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+func LoadSnapshotfromJson(path string) (*MerkleTreeSnapshot, error) {
+	readBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var loadedSnap MerkleTreeSnapshot
+	if err := json.Unmarshal(readBytes, &loadedSnap); err != nil {
+		return nil, err
+	}
+	return &loadedSnap, nil
+}
+
 // FromSnapshot restores a Builder from a snapshot.
 // Note: You must provide a HashFactory if the original used a non-default one,
 // but here we just accept a factory function (optional).
-func FromSnapshot(s *MerkleTreeSnapshot, hf HashFactory) (*Builder, error) {
+func (s *MerkleTreeSnapshot) FromSnapshot(hf HashFactory) (*Builder, error) {
 	if s.Version != 1 {
 		return nil, fmt.Errorf("unsupported snapshot version: %d", s.Version)
 	}

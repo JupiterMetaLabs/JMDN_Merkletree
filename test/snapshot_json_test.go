@@ -2,10 +2,8 @@ package tests
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 	"testing"
 
 	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
@@ -20,7 +18,7 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 	// 5. Machine B: runs Bisect(A, B) to find the diff.
 
 	count := 1000
-	cfg := merkletree.Config{BlockMerge: 100}
+	cfg := merkletree.Config{BlockMerge: 1000}
 
 	// ---- 1. Build Tree A (Original) ----
 	fmt.Println("Building Tree A (Original)...")
@@ -35,15 +33,9 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 	// ---- 2. Save to JSON File ----
 	fmt.Println("Saving Tree A to 'tree_snapshot.json'...")
 	snap := b1.ToSnapshot()
-	jsonBytes, err := json.MarshalIndent(snap, "", "  ")
+	err := snap.SavetoJson("tree_snapshot.json")
 	if err != nil {
-		t.Fatalf("Marshal failed: %v", err)
-	}
-
-	tmpFile := "tree_snapshot.json"
-	// defer os.Remove(tmpFile) // clean up (Disabled so user can see it)
-	if err := os.WriteFile(tmpFile, jsonBytes, 0644); err != nil {
-		t.Fatalf("WriteFile failed: %v", err)
+		t.Fatalf("Save to JSON failed: %v", err)
 	}
 
 	// ---- 3. Build Tree B (Mutated) ----
@@ -62,17 +54,12 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 
 	// ---- 4. Load Tree A from JSON ----
 	fmt.Println("Loading Tree A from JSON...")
-	readBytes, err := os.ReadFile(tmpFile)
+	loadedSnap, err := merkletree.LoadSnapshotfromJson("tree_snapshot.json")
 	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
+		t.Fatalf("LoadSnapshotfromJson failed: %v", err)
 	}
 
-	var loadedSnap merkletree.MerkleTreeSnapshot
-	if err := json.Unmarshal(readBytes, &loadedSnap); err != nil {
-		t.Fatalf("Unmarshal failed: %v", err)
-	}
-
-	b1Restored, err := merkletree.FromSnapshot(&loadedSnap, nil)
+	b1Restored, err := loadedSnap.FromSnapshot(nil)
 	if err != nil {
 		t.Fatalf("FromSnapshot failed: %v", err)
 	}
