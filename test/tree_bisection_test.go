@@ -64,8 +64,8 @@ func TestTreeBisect(t *testing.T) {
 	b1_3000, _ := merkletree.NewBuilder(cfg)
 	b1_3000.Push(0, hashes)
 
-	// Tree B: 2700 blocks (Prefix of A)
-	countB := 190
+	// Tree B: 2890 blocks (Prefix of A)
+	countB := 2890
 	b2_2700, _ := merkletree.NewBuilder(cfg)
 	b2_2700.Push(0, hashes[:countB])
 
@@ -90,5 +90,95 @@ func TestTreeBisect(t *testing.T) {
 	}
 	if countRet == 0 {
 		t.Error("Expected some difference for unequal trees, got none")
+	}
+}
+
+func TestTreeBisect_MiddleMismatch(t *testing.T) {
+	// Scenario: Trees are identical except for a range in the middle.
+	// This validates that TreeBisect correctly traverses past matching left nodes
+	// and identifies the mismatch deep in the tree.
+	count := 3000
+	cfg := merkletree.Config{BlockMerge: 10}
+
+	hashes := make([]merkletree.Hash32, count)
+	for i := 0; i < count; i++ {
+		rand.Read(hashes[i][:])
+	}
+
+	// 1. Build Reference Tree
+	b1, _ := merkletree.NewBuilder(cfg)
+	b1.Push(0, hashes)
+
+	// 2. Build Tree with Middle Mismatch
+	// Mutate blocks [1500..1509]
+	hashesMutated := make([]merkletree.Hash32, count)
+	copy(hashesMutated, hashes)
+	for i := 1500; i < 1510; i++ {
+		hashesMutated[i][0] ^= 0xFF
+	}
+
+	b2, _ := merkletree.NewBuilder(cfg)
+	b2.Push(0, hashesMutated)
+
+	// 3. Bisect
+	start, countRet, err := b1.TreeBisect(b2)
+	if err != nil {
+		t.Fatalf("TreeBisect failed: %v", err)
+	}
+
+	t.Logf("TreeBisect found range: start=%d count=%d", start, countRet)
+
+	// Expectation: Should find the range containing 1500.
+	// Since BlockMerge=10, likely returns [1500..1509].
+	if start != 1500 {
+		t.Errorf("Expected start 1500, got %d", start)
+	}
+	if countRet < 10 {
+		t.Errorf("Expected count >= 10, got %d", countRet)
+	}
+}
+
+func TestTreeBisect_MultipleMismatches(t *testing.T) {
+	// Scenario: Trees have TWO mismatches, one early, one late.
+	// This validates that TreeBisect returns the LEFTMOST mismatch.
+	count := 3000
+	cfg := merkletree.Config{BlockMerge: 10}
+
+	hashes := make([]merkletree.Hash32, count)
+	for i := 0; i < count; i++ {
+		rand.Read(hashes[i][:])
+	}
+
+	// 1. Build Reference Tree
+	b1, _ := merkletree.NewBuilder(cfg)
+	b1.Push(0, hashes)
+
+	// 2. Build Tree with Two Mismatches
+	hashesMutated := make([]merkletree.Hash32, count)
+	copy(hashesMutated, hashes)
+
+	// Mismatch 1: [500..509]
+	for i := 500; i < 510; i++ {
+		hashesMutated[i][0] ^= 0xFF
+	}
+	// Mismatch 2: [1500..1509]
+	for i := 1500; i < 1510; i++ {
+		hashesMutated[i][0] ^= 0xFF
+	}
+
+	b2, _ := merkletree.NewBuilder(cfg)
+	b2.Push(0, hashesMutated)
+
+	// 3. Bisect
+	start, countRet, err := b1.TreeBisect(b2)
+	if err != nil {
+		t.Fatalf("TreeBisect failed: %v", err)
+	}
+
+	t.Logf("TreeBisect found range: start=%d count=%d", start, countRet)
+
+	// Expectation: Should return the EARLIER mismatch (500).
+	if start != 500 {
+		t.Errorf("Expected to find leftmost mismatch at 500, but got %d", start)
 	}
 }
