@@ -1,7 +1,7 @@
 {
   "version": 1,
   "config": {
-    "block_merge": 1000,
+    "block_merge": 100,
     "expected_total": 0
   },
   "total_blocks": 1000,
@@ -10,12 +10,125 @@
   "in_chunk_elems": [],
   "in_chunk_start": 0,
   "peaks": [
+    null,
     {
-      "root": "aW5cgAzoJer34noCSR+CUSL6aWmI/U+GMlZSdu6Rljc=",
+      "left": {
+        "root": "t7/YjIpB65sLcwlEf4wB9srQ/GxlHgy55RJyO2EN2nk=",
+        "start": 800,
+        "count": 100,
+        "data": "t7/YjIpB65sLcwlEf4wB9srQ/GxlHgy55RJyO2EN2nk=",
+        "has_data": true
+      },
+      "right": {
+        "root": "NXc/1L2qW5QgvaTKp/e66M6MEyTtIGWGdPZ2Xe+8E2c=",
+        "start": 900,
+        "count": 100,
+        "data": "NXc/1L2qW5QgvaTKp/e66M6MEyTtIGWGdPZ2Xe+8E2c=",
+        "has_data": true
+      },
+      "root": "nANIHLmiaMZSgtCwoR4BFhUOTY/MA8C/Dn/Y2hLyFY0=",
+      "start": 800,
+      "count": 200,
+      "has_data": false
+    },
+    null,
+    {
+      "left": {
+        "left": {
+          "left": {
+            "root": "fS3BeN4XublD3lrYvRwOMwXFOu0OSOfoT844cJMncXk=",
+            "start": 0,
+            "count": 100,
+            "data": "fS3BeN4XublD3lrYvRwOMwXFOu0OSOfoT844cJMncXk=",
+            "has_data": true
+          },
+          "right": {
+            "root": "mBG9yhQfe01rPIMxfMv6hPbrqGtm9PYTsG6mvWGpfQQ=",
+            "start": 100,
+            "count": 100,
+            "data": "mBG9yhQfe01rPIMxfMv6hPbrqGtm9PYTsG6mvWGpfQQ=",
+            "has_data": true
+          },
+          "root": "qvXgIBniHs/VsmZ+t6U/uy9eF7X9MH30jMfLLwZRzhI=",
+          "start": 0,
+          "count": 200,
+          "has_data": false
+        },
+        "right": {
+          "left": {
+            "root": "4tOSzEwCf6A/o20CmJrXEth2Y4z7kc3b2Bokt0SjKPE=",
+            "start": 200,
+            "count": 100,
+            "data": "4tOSzEwCf6A/o20CmJrXEth2Y4z7kc3b2Bokt0SjKPE=",
+            "has_data": true
+          },
+          "right": {
+            "root": "1g15BMItyWz3Vwbe01RFCUINysgYUhlbwBSgMJeZPuA=",
+            "start": 300,
+            "count": 100,
+            "data": "1g15BMItyWz3Vwbe01RFCUINysgYUhlbwBSgMJeZPuA=",
+            "has_data": true
+          },
+          "root": "Kh3HmEfr4JSMC5Fb+sZ/U30DPatbB8FevTc3apLGGzU=",
+          "start": 200,
+          "count": 200,
+          "has_data": false
+        },
+        "root": "FVYNZRJocP7An19QpC4sInS04MQ6P3kmQSLmwAUP2lc=",
+        "start": 0,
+        "count": 400,
+        "has_data": false
+      },
+      "right": {
+        "left": {
+          "left": {
+            "root": "NXklVieCejND757qvaqz5CRnboMZcJxpbQCgb4MX2jM=",
+            "start": 400,
+            "count": 100,
+            "data": "NXklVieCejND757qvaqz5CRnboMZcJxpbQCgb4MX2jM=",
+            "has_data": true
+          },
+          "right": {
+            "root": "Q34Ws4w7MDO1b7coYmskUzZcY+PE9YjjIkHpOosvf4c=",
+            "start": 500,
+            "count": 100,
+            "data": "Q34Ws4w7MDO1b7coYmskUzZcY+PE9YjjIkHpOosvf4c=",
+            "has_data": true
+          },
+          "root": "f5xnoHO1M9/MVHKON2n4mZr/DPZdWlu7YHwdruJ2ISM=",
+          "start": 400,
+          "count": 200,
+          "has_data": false
+        },
+        "right": {
+          "left": {
+            "root": "SAcSqiOWxB6FDLU5itqVY/APJVXglscYXRaTpgUduPY=",
+            "start": 600,
+            "count": 100,
+            "data": "SAcSqiOWxB6FDLU5itqVY/APJVXglscYXRaTpgUduPY=",
+            "has_data": true
+          },
+          "right": {
+            "root": "mGeiXbIf/1xM5wSomxI6nZ9VvfDwlevECPHrDBzoFPA=",
+            "start": 700,
+            "count": 100,
+            "data": "mGeiXbIf/1xM5wSomxI6nZ9VvfDwlevECPHrDBzoFPA=",
+            "has_data": true
+          },
+          "root": "i8jAwyALoI8ULUJVEzhKz4QaYPe9tDDBIKeD9beHueM=",
+          "start": 600,
+          "count": 200,
+          "has_data": false
+        },
+        "root": "369nQ97pXzBpAqD4P3faQS/ngC9rMDWGzebZSyDqJs8=",
+        "start": 400,
+        "count": 400,
+        "has_data": false
+      },
+      "root": "GM0N2wuzeVUuilBepAjE/wRRhH1HjladmnRLLmhUYCc=",
       "start": 0,
-      "count": 1000,
-      "data": "aW5cgAzoJer34noCSR+CUSL6aWmI/U+GMlZSdu6Rljc=",
-      "has_data": true
+      "count": 800,
+      "has_data": false
     }
   ]
 }

@@ -18,7 +18,7 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 	// 5. Machine B: runs Bisect(A, B) to find the diff.
 
 	count := 1000
-	cfg := merkletree.Config{BlockMerge: 1000}
+	cfg := merkletree.Config{BlockMerge: 100}
 
 	// ---- 1. Build Tree A (Original) ----
 	fmt.Println("Building Tree A (Original)...")
