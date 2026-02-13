@@ -432,9 +432,16 @@ func chunkDigest(hf HashFactory, start uint64, count uint32, elems []Hash32) Has
 	h.Write([]byte{tagChunk})
 	writeU64ToHash(h, start)
 	writeU32ToHash(h, count)
+
+	// XOR all elements
+	var accumulator [32]byte
 	for _, e := range elems {
-		h.Write(e[:])
+		for i := 0; i < 32; i++ {
+			accumulator[i] ^= e[i]
+		}
 	}
+	h.Write(accumulator[:])
+
 	return sumTo32(h)
 }
 
