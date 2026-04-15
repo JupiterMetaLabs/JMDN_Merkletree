@@ -518,6 +518,171 @@ func rep(s string, n int) string {
 	return string(b)
 }
 
+// ─── benchmarks ──────────────────────────────────────────────────────────────
+
+const benchN = 1_000_000 // keys pre-loaded for Contains/Delete benchmarks
+
+// ── Insert ────────────────────────────────────────────────────────────────────
+
+func BenchmarkARTInsert(b *testing.B) {
+	a := New()
+	b.ResetTimer()
+	for i := range b.N {
+		a.Insert(uint64(i))
+	}
+}
+
+func BenchmarkSwappableInsert_BelowThreshold(b *testing.B) {
+	// threshold >> b.N so no disk flush ever happens — pure hot-path cost.
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, b.N+1)
+	defer s.Close()
+	b.ResetTimer()
+	for i := range b.N {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+}
+
+func BenchmarkSwappableInsert_WithSpill(b *testing.B) {
+	// threshold = 10 k so flushes happen regularly — measures amortised cost.
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, 10_000)
+	defer s.Close()
+	b.ResetTimer()
+	for i := range b.N {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+}
+
+// ── Contains ─────────────────────────────────────────────────────────────────
+
+func BenchmarkARTContains_Hit(b *testing.B) {
+	a := New()
+	for i := range benchN {
+		a.Insert(uint64(i))
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		a.Contains(uint64(i % benchN))
+	}
+}
+
+func BenchmarkARTContains_Miss(b *testing.B) {
+	a := New()
+	for i := range benchN {
+		a.Insert(uint64(i))
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		a.Contains(uint64(benchN + i))
+	}
+}
+
+func BenchmarkSwappableContains_Hot_Hit(b *testing.B) {
+	// All keys in hot ART (threshold not reached).
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, benchN+1)
+	defer s.Close()
+	for i := range benchN {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		s.Contains(uint64(i % benchN))
+	}
+}
+
+func BenchmarkSwappableContains_Segment_Warm(b *testing.B) {
+	// All keys flushed to a segment; cache is warm after first access.
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, benchN+1)
+	defer s.Close()
+	for i := range benchN {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+	s.SwapToDisk() //nolint:errcheck
+	// Warm the cache.
+	s.Contains(0)
+	b.ResetTimer()
+	for i := range b.N {
+		s.Contains(uint64(i % benchN))
+	}
+}
+
+func BenchmarkSwappableContains_Segment_Cold(b *testing.B) {
+	// Each iteration clears the segment cache to simulate a cold disk read.
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, benchN+1)
+	defer s.Close()
+	for i := range benchN {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+	s.SwapToDisk() //nolint:errcheck
+	b.ResetTimer()
+	for i := range b.N {
+		// Clear cache before each lookup.
+		for j := range s.segments {
+			s.segments[j].cached = nil
+		}
+		s.Contains(uint64(i % benchN))
+	}
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+
+func BenchmarkARTDelete(b *testing.B) {
+	a := New()
+	for i := range benchN {
+		a.Insert(uint64(i))
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		k := uint64(i % benchN)
+		a.Insert(k) // ensure present
+		a.Delete(k)
+	}
+}
+
+func BenchmarkSwappableDelete(b *testing.B) {
+	dir := b.TempDir()
+	s, _ := NewSwappable(dir, benchN+1)
+	defer s.Close()
+	for i := range benchN {
+		s.Insert(uint64(i)) //nolint:errcheck
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		k := uint64(i % benchN)
+		s.Insert(k) //nolint:errcheck
+		s.Delete(k)
+	}
+}
+
+// ── Encode / Decode ───────────────────────────────────────────────────────────
+
+func BenchmarkEncode(b *testing.B) {
+	a := New()
+	for i := range benchN {
+		a.Insert(uint64(i))
+	}
+	b.ResetTimer()
+	for range b.N {
+		Encode(a)
+	}
+}
+
+func BenchmarkDecode(b *testing.B) {
+	a := New()
+	for i := range benchN {
+		a.Insert(uint64(i))
+	}
+	payload := Encode(a)
+	b.ResetTimer()
+	for range b.N {
+		Decode(payload) //nolint:errcheck
+	}
+}
+
 // ─── example ──────────────────────────────────────────────────────────────────
 
 func ExampleSwappableART() {
