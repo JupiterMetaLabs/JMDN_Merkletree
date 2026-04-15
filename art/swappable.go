@@ -7,7 +7,7 @@ package art
 // Design:
 //
 //	hot       *ART                 — fast in-memory index (mutable)
-//	segments  []segment            — read-only on-disk blobs (immutable once written)
+//	segments  []*segment           — read-only on-disk blobs (immutable once written)
 //	tombstone map[uint64]struct{}  — deleted keys (applied lazily to segments)
 //
 // Operations:
@@ -39,21 +39,26 @@ import (
 const DefaultThreshold = 1_000_000
 
 // segment represents one on-disk zstd-compressed sorted key file.
+// Pointers are used so lazy cache fill never copies a sync.Mutex (see loadSegment).
 type segment struct {
-	path   string
-	count  int
-	min    uint64
-	max    uint64
-	cached []uint64 // nil until first load; kept in memory after first access
+	cacheMu sync.Mutex // protects lazy population of cached only
+	path    string
+	count   int
+	min     uint64
+	max     uint64
+	cached  []uint64 // nil until first load; kept in memory after first access
 }
 
 // SwappableART wraps ART with disk-spill support.
 // It is safe for concurrent use.
+//
+// Read scaling: Contains, Iter, Len, and SegmentCount use sync.RWMutex so many
+// goroutines can read in parallel; writers take the exclusive lock.
 type SwappableART struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	hot       *ART
 	tombstone map[uint64]struct{}
-	segments  []segment
+	segments  []*segment
 	dir       string
 	threshold int
 	seq       int // segment file counter
@@ -93,8 +98,8 @@ func (s *SwappableART) Insert(nonce uint64) error {
 // Contains returns true if nonce is present and not deleted.
 // Checks (in order): tombstone → hot ART → each on-disk segment.
 func (s *SwappableART) Contains(nonce uint64) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	if _, dead := s.tombstone[nonce]; dead {
 		return false
@@ -102,8 +107,7 @@ func (s *SwappableART) Contains(nonce uint64) bool {
 	if s.hot.Contains(nonce) {
 		return true
 	}
-	for i := range s.segments {
-		seg := &s.segments[i]
+	for _, seg := range s.segments {
 		if nonce < seg.min || nonce > seg.max {
 			continue // fast range filter
 		}
@@ -167,8 +171,8 @@ func (s *SwappableART) Compact() error {
 	})
 
 	// Merge all segments (filter tombstones).
-	for i := range s.segments {
-		keys, err := s.loadSegment(&s.segments[i])
+	for _, seg := range s.segments {
+		keys, err := s.loadSegment(seg)
 		if err != nil {
 			return err
 		}
@@ -181,7 +185,7 @@ func (s *SwappableART) Compact() error {
 
 	// Remove old segment files.
 	for _, seg := range s.segments {
-		os.Remove(seg.path)
+		_ = os.Remove(seg.path)
 	}
 	s.segments = s.segments[:0]
 	s.tombstone = make(map[uint64]struct{})
@@ -196,8 +200,8 @@ func (s *SwappableART) Compact() error {
 // call Compact first if sorted iteration is required.
 // Returns the first segment-load error, if any.
 func (s *SwappableART) Iter(f func(uint64)) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	s.hot.Iter(func(k uint64) {
 		if _, dead := s.tombstone[k]; !dead {
@@ -205,8 +209,8 @@ func (s *SwappableART) Iter(f func(uint64)) error {
 		}
 	})
 
-	for i := range s.segments {
-		keys, err := s.loadSegment(&s.segments[i])
+	for _, seg := range s.segments {
+		keys, err := s.loadSegment(seg)
 		if err != nil {
 			return err
 		}
@@ -221,8 +225,8 @@ func (s *SwappableART) Iter(f func(uint64)) error {
 
 // Len returns the total logical key count (hot + segments − tombstones).
 func (s *SwappableART) Len() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	total := s.hot.Len()
 	for _, seg := range s.segments {
@@ -243,8 +247,8 @@ func (s *SwappableART) Close() error {
 
 // SegmentCount returns the number of on-disk segments (useful for monitoring).
 func (s *SwappableART) SegmentCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return len(s.segments)
 }
 
@@ -315,7 +319,7 @@ func (s *SwappableART) flushLocked() error {
 		return fmt.Errorf("art: flush segment %s: %w", path, err)
 	}
 
-	seg := segment{
+	seg := &segment{
 		path:   path,
 		count:  len(keys),
 		cached: keys, // keep first batch in memory; reloaded on subsequent access
@@ -331,7 +335,11 @@ func (s *SwappableART) flushLocked() error {
 
 // loadSegment returns the sorted key slice for seg, loading from disk if not
 // already cached. The result is cached in seg.cached for future calls.
+// cacheMu serializes the first load per segment when many goroutines call Contains
+// with RLock on the SwappableART.
 func (s *SwappableART) loadSegment(seg *segment) ([]uint64, error) {
+	seg.cacheMu.Lock()
+	defer seg.cacheMu.Unlock()
 	if seg.cached != nil {
 		return seg.cached, nil
 	}
