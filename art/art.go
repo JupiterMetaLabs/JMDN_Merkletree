@@ -311,6 +311,9 @@ func (nd *node256) walk(f func(uint64)) {
 
 // keyByte returns the depth-th byte of k in big-endian order (depth ∈ [0,7]).
 func keyByte(k uint64, depth int) byte {
+	if depth < 0 || depth > 7 {
+		return 0
+	}
 	return byte(k >> (56 - uint(depth)*8))
 }
 
@@ -326,6 +329,11 @@ func artInsert(n iNode, key uint64, depth int, size *int) iNode {
 		eb := keyByte(l.key, depth)
 		nb := keyByte(key, depth)
 		if eb == nb {
+			// uint64 keys have exactly 8 bytes (depth 0..7). Past that, keyByte would
+			// underflow and compare equal for all keys, causing infinite recursion.
+			if depth >= 7 {
+				return n
+			}
 			// Keys share a byte at this depth: create a path node and recurse.
 			child := artInsert(l, key, depth+1, size)
 			nd := &node4{}
