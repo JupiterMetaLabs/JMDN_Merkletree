@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+// DiffRange represents a range of blocks that differ between two trees.
+type DiffRange struct {
+	Start uint64 `json:"start"`
+	Count uint32 `json:"count"`
+}
+
 // TreeDiff traverses the entire structure of two trees (starting from RootNode)
 // and returns ALL ranges that differ or are missing.
 //

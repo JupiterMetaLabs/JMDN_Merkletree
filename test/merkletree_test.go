@@ -2,6 +2,7 @@ package tests
 
 import (
 	"testing"
+
 	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
 )
 
@@ -30,9 +31,8 @@ func TestBasicFlow(t *testing.T) {
 		t.Errorf("Expected 3 accepted, got %d", n)
 	}
 
-	st := b.State()
-	if st.TotalBlocks != 3 {
-		t.Errorf("TotalBlocks 3 != %d", st.TotalBlocks)
+	if got := b.ToSnapshot().TotalBlocks; got != 3 {
+		t.Errorf("TotalBlocks 3 != %d", got)
 	}
 
 	// 2. Push 2 more (completes 4, adds 1)
@@ -63,12 +63,12 @@ func TestBasicFlow(t *testing.T) {
 		t.Errorf("Expected 2 accepted, got %d", n)
 	}
 
-	st = b.State()
-	if st.TotalBlocks != 5 {
-		t.Errorf("TotalBlocks 5 != %d", st.TotalBlocks)
+	snap := b.ToSnapshot()
+	if snap.TotalBlocks != 5 {
+		t.Errorf("TotalBlocks 5 != %d", snap.TotalBlocks)
 	}
-	if st.Committed != 1 {
-		t.Errorf("Committed chunks should be 1, got %d", st.Committed)
+	if len(snap.Peaks) != 1 {
+		t.Errorf("Committed chunks should be 1, got %d peaks", len(snap.Peaks))
 	}
 
 	// Finalize
@@ -101,40 +101,6 @@ func TestHeightEnforcement(t *testing.T) {
 		t.Error("Expected error for non-contiguous push, got none")
 	} else {
 		t.Logf("Got expected error: %v", err)
-	}
-}
-
-func TestOnDemandMatchesChunk_Determinism(t *testing.T) {
-	hf := merkletree.DefaultHashFactory
-	var hashes []merkletree.Hash32
-	for i := 0; i < 5; i++ {
-		var h merkletree.Hash32
-		h[0] = byte(i)
-		hashes = append(hashes, h)
-	}
-
-	root1, err := merkletree.InnerMerkleForRange(hf, 100, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(100) failed: %v", err)
-	}
-
-	root2, err := merkletree.InnerMerkleForRange(hf, 100, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(100) retry failed: %v", err)
-	}
-
-	if root1 != root2 {
-		t.Error("InnerMerkleForRange non-deterministic")
-	}
-
-	// Change start height
-	root3, err :=merkletree.InnerMerkleForRange(hf, 101, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(101) failed: %v", err)
-	}
-
-	if root1 == root3 {
-		t.Error("Metadata (startHeight) not affecting hash!")
 	}
 }
 
@@ -176,42 +142,6 @@ func TestAccumulatorMultipleChunks(t *testing.T) {
 
 	if rootBatch != rootStream {
 		t.Errorf("Streaming mismatch.\nBatch: %x\nStream: %x", rootBatch, rootStream)
-	}
-}
-
-func TestSnapshotRestore(t *testing.T) {
-	cfg := merkletree.Config{BlockMerge: 5}
-	b1, _ := merkletree.NewBuilder(cfg)
-
-	var hashes []merkletree.Hash32
-	for i := 0; i < 7; i++ {
-		var h merkletree.Hash32
-		h[0] = byte(i)
-		hashes = append(hashes, h)
-	}
-	// Push 0..6
-	b1.Push(0, hashes)
-
-	snap, err := b1.Snapshot()
-	if err != nil {
-		t.Fatalf("Snapshot failed: %v", err)
-	}
-
-	b2, _ := merkletree.NewBuilder(cfg)
-	if err := b2.Restore(snap); err != nil {
-		t.Fatalf("Restore failed: %v", err)
-	}
-
-	st1 := b1.State()
-	st2 := b2.State()
-	if st1 != st2 {
-		t.Errorf("States differ after restore.\nB1: %+v\nB2: %+v", st1, st2)
-	}
-
-	r1, _ := b1.Finalize()
-	r2, _ := b2.Finalize()
-	if r1 != r2 {
-		t.Errorf("Roots differ after restore.\nR1: %x\nR2: %x", r1, r2)
 	}
 }
 

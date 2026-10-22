@@ -316,7 +316,7 @@ func TestARTReport(t *testing.T) {
 	heapBytes := ms1.HeapAlloc - ms0.HeapAlloc
 
 	row("Build ART (all nonces)", fmtD(buildTime))
-	row("Keys indexed", fmt.Sprintf("%s", fmtCount(idx.Len())))
+	row("Keys indexed", fmtCount(idx.Len()))
 	row("Heap RAM (ART nodes)", fmtB(heapBytes))
 	sep()
 
