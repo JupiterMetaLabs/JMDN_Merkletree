@@ -39,9 +39,6 @@ const (
 	tagElem       = byte(0x21) // per-block element inside chunk digest: H(tagElem||height||blockHash)
 	tagChunk      = byte(0x10) // chunk digest: H(tagChunk||start||count||elem1||...||elemK)
 	tagOuterNode  = byte(0x11) // outer internal node: H(tagOuterNode||start||count||left||right)
-	tagInnerLeaf  = byte(0x30) // on-demand inner merkle leaf: H(tagInnerLeaf||height||blockHash)
-	tagInnerNode  = byte(0x31) // on-demand inner merkle node: H(tagInnerNode||start||count||left||right)
-	tagChunkMerk  = byte(0x32) // optional wrapper: H(tagChunkMerk||start||count||innerRoot)
 	tagSnapshotV1 = byte(0xA1) // snapshot format version
 )
 
@@ -370,52 +367,6 @@ func (b *Builder) Restore(snapshot []byte) error {
 }
 
 // ------------------------------
-// On-demand Merkle for <=200
-// ------------------------------
-
-// InnerMerkleForRange computes a true Merkle root for a specific range, for debug/repair.
-// It binds each leaf to its height, and binds every internal node to (start,count).
-//
-// If you want a chunk-committable wrapper, set wrap=true to return
-// H(tagChunkMerk || start || count || innerRoot).
-func InnerMerkleForRange(hf HashFactory, startHeight uint64, blockHashes []Hash32, wrap bool) (Hash32, error) {
-	// Re-uses local accumulator logic but with simpler nodes?
-	// Actually we can reuse peaksAccumulator with new Node struct trivially.
-	if hf == nil {
-		hf = func() hash.Hash { return DefaultHashFactory() }
-	}
-	if len(blockHashes) == 0 {
-		return Hash32{}, nil
-	}
-	acc := newPeaksAccumulator(hf, innerNodeDigest)
-
-	for i, bh := range blockHashes {
-		height := startHeight + uint64(i)
-		leafHash := innerLeafDigest(hf, height, bh)
-		leaf := &Node{
-			Root:     leafHash,
-			Metadata: Metadata{Start: height, Count: 1},
-			Data:     leafHash, // Or block hash? Usually derived.
-			HasData:  true,
-		}
-		if err := acc.AddLeaf(leaf); err != nil {
-			return Hash32{}, err
-		}
-	}
-
-	root := acc.Root()
-	if wrap {
-		h := hf()
-		h.Write([]byte{tagChunkMerk})
-		writeU64ToHash(h, startHeight)
-		writeU32ToHash(h, uint32(len(blockHashes)))
-		h.Write(root[:])
-		return sumTo32(h), nil
-	}
-	return root, nil
-}
-
-// ------------------------------
 // Hashing primitives
 // ------------------------------
 
@@ -453,43 +404,6 @@ func outerNodeDigest(hf HashFactory, start uint64, count uint32, left Hash32, ri
 	h.Write(left[:])
 	h.Write(right[:])
 	return sumTo32(h)
-}
-
-func innerLeafDigest(hf HashFactory, height uint64, blockHash Hash32) Hash32 {
-	h := hf()
-	h.Write([]byte{tagInnerLeaf})
-	writeU64ToHash(h, height)
-	h.Write(blockHash[:])
-	return sumTo32(h)
-}
-
-func innerNodeDigest(hf HashFactory, start uint64, count uint32, left Hash32, right Hash32) Hash32 {
-	h := hf()
-	h.Write([]byte{tagInnerNode})
-	writeU64ToHash(h, start)
-	writeU32ToHash(h, count)
-	h.Write(left[:])
-	h.Write(right[:])
-	return sumTo32(h)
-}
-
-// ComputeChunkDigest calculates the chunk digest for a specific set of blocks
-// effectively replicating the "fast path" without creating a full Builder.
-// It matches the internal behavior of Builder for a single chunk.
-func ComputeChunkDigest(hf HashFactory, startHeight uint64, blockHashes []Hash32) Hash32 {
-	if hf == nil {
-		hf = func() hash.Hash { return DefaultHashFactory() }
-	}
-	count := uint32(len(blockHashes))
-	if count == 0 {
-		return Hash32{}
-	}
-
-	elems := make([]Hash32, count)
-	for i, h := range blockHashes {
-		elems[i] = elemDigest(hf, startHeight+uint64(i), h)
-	}
-	return chunkDigest(hf, startHeight, count, elems)
 }
 
 func sumTo32(h hash.Hash) Hash32 {
@@ -817,22 +731,6 @@ func writeU32ToHash(h hash.Hash, v uint32) {
 }
 
 // ------------------------------
-// Convenience: sanity checks
-// ------------------------------
-
-var (
-	ErrConfigMismatch = errors.New("config mismatch")
-)
-
-// EnsureSameRoot is a tiny helper for comparing roots.
-func EnsureSameRoot(a, b Hash32) error {
-	if a != b {
-		return errors.New("roots differ")
-	}
-	return nil
-}
-
-// ------------------------------
 // Snapshot / JSON Serialization
 // ------------------------------
 
@@ -879,19 +777,6 @@ func (s *MerkleTreeSnapshot) SavetoJson(path string) error {
 		return err
 	}
 	return nil
-}
-
-func LoadSnapshotfromJson(path string) (*MerkleTreeSnapshot, error) {
-	readBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var loadedSnap MerkleTreeSnapshot
-	if err := json.Unmarshal(readBytes, &loadedSnap); err != nil {
-		return nil, err
-	}
-	return &loadedSnap, nil
 }
 
 // FromSnapshot restores a Builder from a snapshot.

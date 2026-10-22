@@ -2,8 +2,10 @@ package tests
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
@@ -54,9 +56,13 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 
 	// ---- 4. Load Tree A from JSON ----
 	fmt.Println("Loading Tree A from JSON...")
-	loadedSnap, err := merkletree.LoadSnapshotfromJson("tree_snapshot.json")
+	raw, err := os.ReadFile("tree_snapshot.json")
 	if err != nil {
-		t.Fatalf("LoadSnapshotfromJson failed: %v", err)
+		t.Fatalf("read snapshot failed: %v", err)
+	}
+	loadedSnap := &merkletree.MerkleTreeSnapshot{}
+	if err := json.Unmarshal(raw, loadedSnap); err != nil {
+		t.Fatalf("decode snapshot failed: %v", err)
 	}
 
 	b1Restored, err := loadedSnap.FromSnapshot(nil)

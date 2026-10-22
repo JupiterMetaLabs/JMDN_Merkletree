@@ -104,40 +104,6 @@ func TestHeightEnforcement(t *testing.T) {
 	}
 }
 
-func TestOnDemandMatchesChunk_Determinism(t *testing.T) {
-	hf := merkletree.DefaultHashFactory
-	var hashes []merkletree.Hash32
-	for i := 0; i < 5; i++ {
-		var h merkletree.Hash32
-		h[0] = byte(i)
-		hashes = append(hashes, h)
-	}
-
-	root1, err := merkletree.InnerMerkleForRange(hf, 100, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(100) failed: %v", err)
-	}
-
-	root2, err := merkletree.InnerMerkleForRange(hf, 100, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(100) retry failed: %v", err)
-	}
-
-	if root1 != root2 {
-		t.Error("InnerMerkleForRange non-deterministic")
-	}
-
-	// Change start height
-	root3, err :=merkletree.InnerMerkleForRange(hf, 101, hashes, false)
-	if err != nil {
-		t.Fatalf("InnerMerkleForRange(101) failed: %v", err)
-	}
-
-	if root1 == root3 {
-		t.Error("Metadata (startHeight) not affecting hash!")
-	}
-}
-
 func TestAccumulatorMultipleChunks(t *testing.T) {
 	cfg := merkletree.Config{BlockMerge: 2}
 	b, _ := merkletree.NewBuilder(cfg)
