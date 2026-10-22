@@ -19,15 +19,12 @@
 package merkletree
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
 	"math"
-	"os"
 )
 
 type Hash32 [32]byte
@@ -36,10 +33,9 @@ type Hash32 [32]byte
 //
 // Tags separate layers and node types to avoid ambiguity / cross-layer collisions.
 const (
-	tagElem       = byte(0x21) // per-block element inside chunk digest: H(tagElem||height||blockHash)
-	tagChunk      = byte(0x10) // chunk digest: H(tagChunk||start||count||elem1||...||elemK)
-	tagOuterNode  = byte(0x11) // outer internal node: H(tagOuterNode||start||count||left||right)
-	tagSnapshotV1 = byte(0xA1) // snapshot format version
+	tagElem      = byte(0x21) // per-block element inside chunk digest: H(tagElem||height||blockHash)
+	tagChunk     = byte(0x10) // chunk digest: H(tagChunk||start||count||elem1||...||elemK)
+	tagOuterNode = byte(0x11) // outer internal node: H(tagOuterNode||start||count||left||right)
 )
 
 // HashFactory returns a new streaming hasher. Use SHA-256 by default.
@@ -108,22 +104,6 @@ func NewBuilder(cfg Config) (*Builder, error) {
 		b.expectedNextHeight = *cfg.StartHeight
 	}
 	return b, nil
-}
-
-type State struct {
-	TotalBlocks  uint64
-	Committed    uint64 // number of full/partial chunks committed to outer so far
-	InChunkCount int
-	NextHeight   uint64 // meaningful if StartHeight enforced
-}
-
-func (b *Builder) State() State {
-	return State{
-		TotalBlocks:  b.totalBlocks,
-		Committed:    b.outer.leafCount,
-		InChunkCount: len(b.inChunkElems),
-		NextHeight:   b.expectedNextHeight,
-	}
 }
 
 // Push ingests a contiguous batch of block hashes.
@@ -243,132 +223,6 @@ func (b *Builder) commitCurrentChunk() error {
 	b.inChunkStart = 0
 	return nil
 }
-
-// Snapshot serializes builder state so you can persist it to your WAL.
-func (b *Builder) Snapshot() ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteByte(tagSnapshotV1)
-
-	// Config fields that affect hashing/determinism
-	if err := writeU32(&buf, uint32(b.cfg.BlockMerge)); err != nil {
-		return nil, err
-	}
-	// Note: We don't serialize ExpectedTotal, strictly speaking it's config.
-	// But BlockMerge is the critical derived value.
-	// We do NOT serialize HashFactory; caller must restore with same config.
-
-	// Height enforcement
-	if b.enforceHeights {
-		buf.WriteByte(1)
-		if err := writeU64(&buf, b.expectedNextHeight); err != nil {
-			return nil, err
-		}
-	} else {
-		buf.WriteByte(0)
-	}
-
-	// Totals
-	if err := writeU64(&buf, b.totalBlocks); err != nil {
-		return nil, err
-	}
-
-	// Partial chunk
-	if err := writeU64(&buf, b.inChunkStart); err != nil {
-		return nil, err
-	}
-	if err := writeU32(&buf, uint32(len(b.inChunkElems))); err != nil {
-		return nil, err
-	}
-	for _, e := range b.inChunkElems {
-		buf.Write(e[:])
-	}
-
-	// Outer peaks
-	if err := b.outer.Encode(&buf); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-// Restore loads a snapshot previously produced by Snapshot().
-// Caller must create Builder with the same Config (blockMerge + hash function).
-func (b *Builder) Restore(snapshot []byte) error {
-	r := bytes.NewReader(snapshot)
-
-	v, err := r.ReadByte()
-	if err != nil {
-		return err
-	}
-	if v != tagSnapshotV1 {
-		return fmt.Errorf("unsupported snapshot version: %x", v)
-	}
-
-	blockMerge, err := readU32(r)
-	if err != nil {
-		return err
-	}
-	// If config wasn't set or differs, overwrite or error?
-	// The builder should respect the snapshot's structure choice.
-	if int(blockMerge) != b.cfg.BlockMerge {
-		// Strict check or adapt?
-		return fmt.Errorf("snapshot blockMerge %d != builder blockMerge %d", blockMerge, b.cfg.BlockMerge)
-	}
-
-	enf, err := r.ReadByte()
-	if err != nil {
-		return err
-	}
-	if enf == 1 {
-		b.enforceHeights = true
-		b.expectedNextHeight, err = readU64(r)
-		if err != nil {
-			return err
-		}
-	} else {
-		b.enforceHeights = false
-	}
-
-	b.totalBlocks, err = readU64(r)
-	if err != nil {
-		return err
-	}
-
-	// Partial chunk
-	b.inChunkStart, err = readU64(r)
-	if err != nil {
-		return err
-	}
-	n, err := readU32(r)
-	if err != nil {
-		return err
-	}
-	// The snapshot's inChunkCount must not exceed the builder's current blockMerge config.
-	// This is a sanity check, as the builder's buffer capacity is based on its config.
-	if int(n) > b.cfg.BlockMerge {
-		return fmt.Errorf("snapshot inChunkCount %d > builder blockMerge %d", n, b.cfg.BlockMerge)
-	}
-	b.inChunkElems = make([]Hash32, 0, b.cfg.BlockMerge)
-	for i := 0; i < int(n); i++ {
-		var e Hash32
-		if _, err := r.Read(e[:]); err != nil {
-			return err
-		}
-		b.inChunkElems = append(b.inChunkElems, e)
-	}
-
-	// Outer peaks
-	b.outer = newPeaksAccumulator(b.cfg.HashFactory, outerNodeDigest)
-	if err := b.outer.Decode(r); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// ------------------------------
-// Hashing primitives
-// ------------------------------
 
 func elemDigest(hf HashFactory, height uint64, blockHash Hash32) Hash32 {
 	h := hf()
@@ -528,195 +382,9 @@ func (a *peaksAccumulator) Root() Hash32 {
 	return r.Root
 }
 
-// Encode serializes peaks and recursively serializes the entire tree structure.
-func (a *peaksAccumulator) Encode(buf *bytes.Buffer) error {
-	if err := writeU64(buf, a.leafCount); err != nil {
-		return err
-	}
-	if err := writeU32(buf, uint32(len(a.peaks))); err != nil {
-		return err
-	}
-	for _, p := range a.peaks {
-		if err := encodeNode(buf, p); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Decode restores the full tree structure recursively.
-func (a *peaksAccumulator) Decode(r *bytes.Reader) error {
-	lc, err := readU64(r)
-	if err != nil {
-		return err
-	}
-	a.leafCount = lc
-
-	n, err := readU32(r)
-	if err != nil {
-		return err
-	}
-
-	a.peaks = make([]*Node, int(n))
-	for i := 0; i < int(n); i++ {
-		node, err := decodeNode(r)
-		if err != nil {
-			return err
-		}
-		a.peaks[i] = node
-	}
-	return nil
-}
-
 // ------------------------------
-// Recursive Node Serialization
+// Hash input helpers
 // ------------------------------
-
-// Node Type Tags
-const (
-	nodeTagNil      = 0x00
-	nodeTagLeaf     = 0x01 // HasData = true
-	nodeTagInternal = 0x02 // HasData = false, has Children
-)
-
-func encodeNode(buf *bytes.Buffer, n *Node) error {
-	if n == nil {
-		return buf.WriteByte(nodeTagNil)
-	}
-
-	if n.HasData {
-		// Leaf Node
-		if err := buf.WriteByte(nodeTagLeaf); err != nil {
-			return err
-		}
-		if err := writeU64(buf, n.Metadata.Start); err != nil {
-			return err
-		}
-		if err := writeU32(buf, n.Metadata.Count); err != nil {
-			return err
-		}
-		if _, err := buf.Write(n.Root[:]); err != nil {
-			return err
-		}
-		if _, err := buf.Write(n.Data[:]); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// Internal Node
-	if err := buf.WriteByte(nodeTagInternal); err != nil {
-		return err
-	}
-	if err := writeU64(buf, n.Metadata.Start); err != nil {
-		return err
-	}
-	if err := writeU32(buf, n.Metadata.Count); err != nil {
-		return err
-	}
-	if _, err := buf.Write(n.Root[:]); err != nil {
-		return err
-	}
-
-	// Recurse children
-	if err := encodeNode(buf, n.Left); err != nil {
-		return err
-	}
-	if err := encodeNode(buf, n.Right); err != nil {
-		return err
-	}
-	return nil
-}
-
-func decodeNode(r *bytes.Reader) (*Node, error) {
-	tag, err := r.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-
-	if tag == nodeTagNil {
-		return nil, nil
-	}
-
-	start, err := readU64(r)
-	if err != nil {
-		return nil, err
-	}
-	count, err := readU32(r)
-	if err != nil {
-		return nil, err
-	}
-	var root Hash32
-	if _, err := r.Read(root[:]); err != nil {
-		return nil, err
-	}
-
-	n := &Node{
-		Root:     root,
-		Metadata: Metadata{Start: start, Count: count},
-	}
-
-	if tag == nodeTagLeaf {
-		var data Hash32
-		if _, err := r.Read(data[:]); err != nil {
-			return nil, err
-		}
-		n.Data = data
-		n.HasData = true
-		return n, nil
-	}
-
-	if tag == nodeTagInternal {
-		n.HasData = false
-		left, err := decodeNode(r)
-		if err != nil {
-			return nil, err
-		}
-		right, err := decodeNode(r)
-		if err != nil {
-			return nil, err
-		}
-		n.Left = left
-		n.Right = right
-		return n, nil
-	}
-
-	return nil, fmt.Errorf("unknown node tag: %x", tag)
-}
-
-// ------------------------------
-// Binary encoding helpers
-// ------------------------------
-
-func writeU64(buf *bytes.Buffer, v uint64) error {
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], v)
-	_, err := buf.Write(b[:])
-	return err
-}
-
-func writeU32(buf *bytes.Buffer, v uint32) error {
-	var b [4]byte
-	binary.LittleEndian.PutUint32(b[:], v)
-	_, err := buf.Write(b[:])
-	return err
-}
-
-func readU64(r *bytes.Reader) (uint64, error) {
-	var b [8]byte
-	if _, err := r.Read(b[:]); err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint64(b[:]), nil
-}
-
-func readU32(r *bytes.Reader) (uint32, error) {
-	var b [4]byte
-	if _, err := r.Read(b[:]); err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint32(b[:]), nil
-}
 
 func writeU64ToHash(h hash.Hash, v uint64) {
 	var b [8]byte
@@ -765,18 +433,6 @@ func (b *Builder) ToSnapshot() *MerkleTreeSnapshot {
 	}
 
 	return s
-}
-
-func (s *MerkleTreeSnapshot) SavetoJson(path string) error {
-	jsonBytes, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(path, jsonBytes, 0644); err != nil {
-		return err
-	}
-	return nil
 }
 
 // FromSnapshot restores a Builder from a snapshot.

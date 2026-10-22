@@ -47,20 +47,12 @@ func TestRandomizedDiff10k(t *testing.T) {
 	b1.Visualize()
 	b2.Visualize()
 
-	// 3. Find Difference using Bisection
-	fmt.Println("Running BisectDifference...")
-	start, chunkCount, err := b1.Bisect(b2)
+	// 3. Find the difference with TreeDiff
+	diffs, err := b1.TreeDiff(b2)
 	if err != nil {
-		t.Fatalf("Bisect error: %v", err)
+		t.Fatalf("TreeDiff error: %v", err)
 	}
-
-	fmt.Printf(">> Mismatch found at Chunk Range: [%d .. %d] (Count %d)\n", start, start+uint64(chunkCount)-1, chunkCount)
-
-	// Verification
-	// The mutated index `idx` should be within [start, start+count-1]
-	if uint64(idx) >= start && uint64(idx) < start+uint64(chunkCount) {
-		fmt.Println("SUCCESS: Mutated block is inside the identified chunk.")
-	} else {
-		t.Errorf("FAILURE: Mutated block %d NOT in range [%d .. %d]", idx, start, start+uint64(chunkCount)-1)
+	if !rangesContain(diffs, uint64(idx)) {
+		t.Errorf("FAILURE: Mutated block %d not in any diff range %+v", idx, diffs)
 	}
 }

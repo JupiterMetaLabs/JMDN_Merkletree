@@ -6,18 +6,21 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/JupiterMetaLabs/JMDN_Merkletree/merkletree"
 )
 
-func TestSnapshotFileAndBisect(t *testing.T) {
+func TestSnapshotFileAndDiff(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tree_snapshot.json")
+
 	// Scenario:
 	// 1. Machine A: builds Tree A (Original).
 	// 2. Machine A: saves Tree A to "tree_snapshot.json".
 	// 3. Machine B: builds Tree B (Mutated).
 	// 4. Machine B: loads Tree A from "tree_snapshot.json".
-	// 5. Machine B: runs Bisect(A, B) to find the diff.
+	// 5. Machine B: runs TreeDiff(A, B) to find the diff.
 
 	count := 1000
 	cfg := merkletree.Config{BlockMerge: 100}
@@ -35,9 +38,12 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 	// ---- 2. Save to JSON File ----
 	fmt.Println("Saving Tree A to 'tree_snapshot.json'...")
 	snap := b1.ToSnapshot()
-	err := snap.SavetoJson("tree_snapshot.json")
+	jsonBytes, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
-		t.Fatalf("Save to JSON failed: %v", err)
+		t.Fatalf("encode snapshot failed: %v", err)
+	}
+	if err := os.WriteFile(path, jsonBytes, 0o644); err != nil {
+		t.Fatalf("write snapshot failed: %v", err)
 	}
 
 	// ---- 3. Build Tree B (Mutated) ----
@@ -56,7 +62,7 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 
 	// ---- 4. Load Tree A from JSON ----
 	fmt.Println("Loading Tree A from JSON...")
-	raw, err := os.ReadFile("tree_snapshot.json")
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read snapshot failed: %v", err)
 	}
@@ -70,8 +76,8 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 		t.Fatalf("FromSnapshot failed: %v", err)
 	}
 
-	// ---- 5. Bisect ----
-	fmt.Println("Running Bisect(RestoredA, MutatedB)...")
+	// ---- 5. Diff ----
+	fmt.Println("Running TreeDiff(RestoredA, MutatedB)...")
 
 	// Verify roots first (should differ)
 	r1, _ := b1Restored.Finalize()
@@ -80,16 +86,21 @@ func TestSnapshotFileAndBisect(t *testing.T) {
 		t.Fatal("Roots should differ but match!")
 	}
 
-	start, bCount, err := b1Restored.Bisect(b2)
+	diffs, err := b1Restored.TreeDiff(b2)
 	if err != nil {
-		t.Fatalf("Bisect failed: %v", err)
+		t.Fatalf("TreeDiff failed: %v", err)
 	}
-
-	fmt.Printf(">> Difference found at range [%d .. %d]\n", start, start+uint64(bCount)-1)
-
-	if uint64(idx) >= start && uint64(idx) < start+uint64(bCount) {
-		fmt.Println("SUCCESS: Mutated index is within identified range.")
-	} else {
-		t.Fatalf("FAILURE: Mutated index %d NOT in range [%d .. %d]", idx, start, start+uint64(bCount)-1)
+	if !rangesContain(diffs, uint64(idx)) {
+		t.Fatalf("FAILURE: Mutated index %d not in any diff range %+v", idx, diffs)
 	}
+}
+
+// rangesContain reports whether height falls inside any of the diff ranges.
+func rangesContain(diffs []merkletree.DiffRange, height uint64) bool {
+	for _, d := range diffs {
+		if height >= d.Start && height < d.Start+uint64(d.Count) {
+			return true
+		}
+	}
+	return false
 }
