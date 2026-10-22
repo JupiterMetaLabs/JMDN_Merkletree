@@ -40,7 +40,6 @@ func TestPaginationAndRestorationFlow(t *testing.T) {
 	}
 
 	// Simulate "GetPage" loop
-	allSourceHashes := make([]merkletree.Hash32, 0, totalHashes)
 	for p := 0; p < totalPages; p++ {
 		// Generate 1000 hashes for this page
 		pageHashes := make([]merkletree.Hash32, hashesPerPage)
@@ -49,9 +48,6 @@ func TestPaginationAndRestorationFlow(t *testing.T) {
 			globalIndex := p*hashesPerPage + i
 			pageHashes[i] = mockHash(globalIndex)
 		}
-
-		// Keep a copy for verification later
-		allSourceHashes = append(allSourceHashes, pageHashes...)
 
 		// Push to Merkle Builder
 		// Note: We can pass 0 as startHeight if we aren't enforcing specific ranges per push,
